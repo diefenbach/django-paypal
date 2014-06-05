@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from django.conf import settings
 from django.template import RequestContext
 from django.shortcuts import render_to_response
 from django.http import HttpResponseRedirect
 from django.utils.http import urlencode
 
 from paypal.pro.forms import PaymentForm, ConfirmForm
-from paypal.pro.helpers import PayPalWPP
+from paypal.pro.models import PayPalNVP
+from paypal.pro.helpers import PayPalWPP, TEST
+from paypal.pro.signals import payment_was_successful, payment_was_flagged
 from paypal.pro.exceptions import PayPalFailure
 
 # PayPal Edit IPN URL:
@@ -75,10 +76,10 @@ class PayPalPro(object):
         "form": "Please correct the errors below and try again.",
         "paypal": "There was a problem contacting PayPal. Please try again later."
     }
-
+    
     def __init__(self, item=None, payment_form_cls=PaymentForm,
-                 payment_template="pro/payment.html", confirm_form_cls=ConfirmForm,
-                 confirm_template="pro/confirm.html", success_url="?success",
+                 payment_template="pro/payment.html", confirm_form_cls=ConfirmForm, 
+                 confirm_template="pro/confirm.html", success_url="?success", 
                  fail_url=None, context=None, form_context_name="form"):
         self.item = item
         self.payment_form_cls = payment_form_cls
@@ -99,13 +100,13 @@ class PayPalPro(object):
             elif self.should_render_confirm_form():
                 return self.render_confirm_form()
             elif self.should_render_payment_form():
-                return self.render_payment_form()
+                return self.render_payment_form() 
         else:
             if self.should_validate_confirm_form():
                 return self.validate_confirm_form()
             elif self.should_validate_payment_form():
                 return self.validate_payment_form()
-
+        
         # Default to the rendering the payment form.
         return self.render_payment_form()
 
@@ -114,16 +115,16 @@ class PayPalPro(object):
 
     def should_redirect_to_express(self):
         return 'express' in self.request.GET
-
+        
     def should_render_confirm_form(self):
         return 'token' in self.request.GET and 'PayerID' in self.request.GET
-
+        
     def should_render_payment_form(self):
         return True
 
     def should_validate_confirm_form(self):
-        return 'token' in self.request.POST and 'PayerID' in self.request.POST
-
+        return 'token' in self.request.POST and 'PayerID' in self.request.POST  
+        
     def should_validate_payment_form(self):
         return True
 
@@ -134,10 +135,11 @@ class PayPalPro(object):
 
     def validate_payment_form(self):
         """Try to validate and then process the DirectPayment form."""
-        form = self.payment_form_cls(self.request.POST)
+        form = self.payment_form_cls(self.request.POST)        
         if form.is_valid():
             success = form.process(self.request, self.item)
             if success:
+                payment_was_successful.send(sender=self.item)
                 return HttpResponseRedirect(self.success_url)
             else:
                 self.context['errors'] = self.errors['processing']
@@ -147,7 +149,7 @@ class PayPalPro(object):
         return render_to_response(self.payment_template, self.context, RequestContext(self.request))
 
     def get_endpoint(self):
-        if getattr(settings, 'PAYPAL_TEST', True):
+        if TEST:
             return SANDBOX_EXPRESS_ENDPOINT
         else:
             return EXPRESS_ENDPOINT
@@ -164,8 +166,8 @@ class PayPalPro(object):
             self.context['errors'] = self.errors['paypal']
             return self.render_payment_form()
         else:
-            pp_params = dict(token=nvp_obj.token, AMT=self.item['amt'],
-                             RETURNURL=self.item['returnurl'],
+            pp_params = dict(token=nvp_obj.token, AMT=self.item['amt'], 
+                             RETURNURL=self.item['returnurl'], 
                              CANCELURL=self.item['cancelurl'])
             pp_url = self.get_endpoint() % urlencode(pp_params)
             return HttpResponseRedirect(pp_url)
@@ -187,7 +189,7 @@ class PayPalPro(object):
         wpp = PayPalWPP(self.request)
         pp_data = dict(token=self.request.POST['token'], payerid=self.request.POST['PayerID'])
         self.item.update(pp_data)
-
+        
         # @@@ This check and call could be moved into PayPalWPP.
         try:
             if self.is_recurring():

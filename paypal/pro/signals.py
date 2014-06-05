@@ -9,9 +9,6 @@ PayPalPro rather than an IPN object.
 
 """
 
-# Sent when a recurring payments profile is created.
-payment_profile_created = Signal()
-
 # Sent when a payment is successfully processed.
 payment_was_successful = Signal() #providing_args=["item"])
 

@@ -1,5 +1,5 @@
 """
-Note that sometimes you will get duplicate signals emitted, depending on configuration of your systems.
+Note that sometimes you will get duplicate signals emitted, depending on configuration of your systems. 
 If you do encounter this, you will need to add the "dispatch_uid" to your connect handlers:
 http://code.djangoproject.com/wiki/Signals#Helppost_saveseemstobeemittedtwiceforeachsave
 
@@ -11,12 +11,6 @@ payment_was_successful = Signal()
 
 # Sent when a payment is flagged.
 payment_was_flagged = Signal()
-
-# Sent when a payment was refunded by the seller.
-payment_was_refunded = Signal()
-
-# Sent when a payment was reversed by the buyer.
-payment_was_reversed = Signal()
 
 # Sent when a subscription was cancelled.
 subscription_cancel = Signal()
@@ -37,7 +31,3 @@ recurring_create = Signal()
 recurring_payment = Signal()
 
 recurring_cancel = Signal()
-
-recurring_skipped = Signal()
-
-recurring_failed = Signal()
